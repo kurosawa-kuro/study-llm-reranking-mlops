@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.batch.evaluation_store import latest_adoption_decision
+from src.batch.evaluation.evaluation_store import latest_adoption_decision
 from src.ml.train_lgbm import train_model
 from src.ml.training_data import fetch_training_rows, write_csv
 

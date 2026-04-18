@@ -8,8 +8,8 @@ from pathlib import Path
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from src.batch.evaluation_store import insert_offline_eval_report
-from src.batch.kpi_utils import compute_kpi_metrics
+from src.batch.evaluation.evaluation_store import insert_offline_eval_report
+from src.batch.evaluation.kpi_utils import compute_kpi_metrics
 from src.eval.offline_metrics import compute_offline_metrics
 from src.infra.db import get_db_connection
 

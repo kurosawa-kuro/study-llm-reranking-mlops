@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from datetime import date
 
-from src.batch.kpi_utils import compute_kpi_metrics
+from src.batch.evaluation.kpi_utils import compute_kpi_metrics
 from src.infra.db import get_db_connection
 
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.batch.evaluation_store import insert_offline_eval_report
+from src.batch.evaluation.evaluation_store import insert_offline_eval_report
 from src.eval.offline_metrics import compute_offline_metrics
 
 
