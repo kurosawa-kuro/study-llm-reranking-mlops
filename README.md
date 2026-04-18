@@ -7,7 +7,7 @@
 - FastAPI の最小 API（health エンドポイント）
 - Docker Compose によるローカル起動基盤
 - PostgreSQL / pgAdmin / Meilisearch / Redis の連携雛形
-- 初期ディレクトリ構成（api/search/ranking/ml/batch/infra）
+- 初期ディレクトリ構成（現在は責務別に `api/clients/services/trainers/jobs/core/repositories` へ整理）
 
 ## Phase 1 実装済み範囲
 
@@ -44,8 +44,8 @@
 ## Phase 5 着手済み範囲
 
 - 学習ログ拡張（`search_logs.actioned_id`, `search_logs.action_type`）
-- 学習データ生成スクリプト（`src/ml/training_data.py`）
-- LightGBM 学習スクリプト（`src/ml/train_lgbm.py`）
+- 学習データ生成スクリプト（`src/trainers/training_dataset_builder.py`）
+- LightGBM 学習スクリプト（`src/trainers/lgbm_trainer.py`）
 - `GET /search` への LightGBM 推論再ランキング統合（モデル未学習時はfallback）
 - Meili順と再ランキング順の比較ログ出力（`ranking_compare_logs`）
 
@@ -55,61 +55,49 @@
 - オンライン KPI 日次集計（CTR, favorite_rate, inquiry_rate, CVR）
 - 週次レポート出力（CSV/Markdown）
 - モデル採用判定ルール（閾値ベース）
+- `GET /search` の Redis キャッシュ（`SEARCH_CACHE_TTL_SECONDS`、既定 120 秒）
+
+## テスト
+
+- `tests/api/test_api.py`（`/health`, `/search`, `/feedback` の正常系）
+- `tests/clients/test_redis_client.py`（キャッシュキー、hit/miss、障害時フォールバック）
+- `tests/services/...`（検索・埋め込み・評価ロジック）
+- 実行コマンド: `python3 -m pytest tests/ -v`
 
 ## 起動
 
-1. 依存コンテナを起動
-
-	docker compose up -d
-
-2. health チェック
-
-	curl http://localhost:8000/health
-
-3. Phase 1 初期データ投入
+1. コンテナ起動
 
 	make build
 	make up
-	make phase1-bootstrap
 
-4. 検索確認
+2. ヘルスチェック
 
-	make phase1-search-check
+	make health
 
-5. Phase 2 初期化と動作確認
+3. 初期セットアップ（一括）
 
-	make phase2-bootstrap
-	make phase2-feedback-check
+	make ops-bootstrap
 
-6. Phase 3 初期化と日次バッチ確認
+4. 基本動作確認
 
-	make phase3-bootstrap
-	make phase3-daily
-	make phase3-feature-check
+	make search-check
+	make feedback-check
+	make ranking-check
 
-7. Phase 4 初期化とME5確認
+5. 定常運用
 
-	make phase4-bootstrap
-	make phase4-search-check
-	make phase4-daily
-	make phase4-feature-check
+	make ops-daily
+	make ops-weekly
 
-8. Phase 5 学習と推論確認
+6. 代表 E2E 確認
 
-	make phase5-migrate
-	# 札幌 2LDK の実ヒット条件で click/favorite/inquiry を生成
-	make phase5-label-seed
-	make phase5-generate-train
-	make phase5-train
-	make phase5-search-check
-	make phase5-compare-check
+	make verify-pipeline
 
-9. Phase 6 評価運用
+補足:
 
-	make phase6-migrate
-	make phase6-kpi-daily
-	make phase6-offline-eval
-	make phase6-weekly-report
+- 新規運用は責務ベースターゲット（`search-sync`, `features-daily`, `training-fit` など）を使用
+- `phase*` ターゲットは後方互換 alias としてのみ残置
 
 ## アクセス先
 
