@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 from psycopg.rows import dict_row
 
-from src.infra.db import get_db_connection
+from src.infra.database.db import get_db_connection
 
 FEATURE_COLUMNS = [
     "price",

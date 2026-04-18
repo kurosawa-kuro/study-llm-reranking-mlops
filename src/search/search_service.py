@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from src.infra.engagement import log_search_and_increment_impressions
-from src.infra.me5_repository import fetch_property_embeddings
-from src.infra.ranking_compare import log_ranking_comparison
+from src.infra.repositories.engagement import log_search_and_increment_impressions
+from src.infra.repositories.me5_repository import fetch_property_embeddings
+from src.infra.repositories.ranking_compare import log_ranking_comparison
 from src.ml.me5_embed import encode_queries
 from src.ml.similarity import cosine_similarity
 from src.ranking.inference import rerank_with_lgbm

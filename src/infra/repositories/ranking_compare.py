@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from psycopg.types.json import Jsonb
 
-from src.infra.db import get_db_connection
+from src.infra.database.db import get_db_connection
 
 
 def log_ranking_comparison(

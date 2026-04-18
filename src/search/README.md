@@ -19,9 +19,9 @@
 ## Inputs And Dependencies
 
 - `src.api.routes.search` から呼ばれる
-- `src.infra.engagement` で検索ログと impression を記録する
-- `src.infra.me5_repository` から物件 embedding を読む
-- `src.infra.ranking_compare` へ Meili 順位と rerank 順位の差分を保存する
+- `src.infra.repositories.engagement` で検索ログと impression を記録する
+- `src.infra.repositories.me5_repository` から物件 embedding を読む
+- `src.infra.repositories.ranking_compare` へ Meili 順位と rerank 順位の差分を保存する
 - `src.ml.me5_embed` と `src.ml.similarity` を使って ME5 類似度を算出する
 - `src.ranking.inference` で LightGBM 推論を行う
 

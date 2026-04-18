@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from src.infra.db import get_db_connection
+from src.infra.database.db import get_db_connection
 
 
 def run_sql_file(file_path: Path) -> None:

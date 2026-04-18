@@ -4,7 +4,7 @@ import argparse
 from datetime import date
 
 from src.batch.evaluation.metrics.kpi_utils import compute_kpi_metrics
-from src.infra.db import get_db_connection
+from src.infra.database.db import get_db_connection
 
 
 def upsert_kpi_for_day(target_date: date) -> dict[str, float | int | str]:

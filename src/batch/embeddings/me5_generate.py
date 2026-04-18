@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from psycopg.rows import dict_row
 
-from src.infra.db import get_db_connection
-from src.infra.me5_repository import upsert_property_embeddings
+from src.infra.database.db import get_db_connection
+from src.infra.repositories.me5_repository import upsert_property_embeddings
 from src.ml.me5_embed import encode_passages, get_embedder
 
 

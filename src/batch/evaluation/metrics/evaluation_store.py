@@ -4,7 +4,7 @@ from typing import Any, Mapping
 
 from psycopg.rows import dict_row
 
-from src.infra.db import get_db_connection
+from src.infra.database.db import get_db_connection
 
 OFFLINE_EVAL_FIELDS = (
     "evaluated_queries",

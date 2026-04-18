@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.infra.db import get_db_connection
+from src.infra.database.db import get_db_connection
 from src.ranking.features import (
     recalculate_property_stats,
     remove_inactive_features,

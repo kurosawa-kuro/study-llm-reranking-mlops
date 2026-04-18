@@ -5,7 +5,7 @@ from pathlib import Path
 
 from psycopg.rows import dict_row
 
-from src.infra.db import get_db_connection
+from src.infra.database.db import get_db_connection
 
 OUTPUT_PATH = Path("/app/artifacts/train/rank_train.csv")
 

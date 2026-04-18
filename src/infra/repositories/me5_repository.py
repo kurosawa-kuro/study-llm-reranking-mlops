@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from psycopg.rows import dict_row
 
-from src.infra.db import get_db_connection
+from src.infra.database.db import get_db_connection
 
 
 def upsert_property_embeddings(records: list[dict[str, object]]) -> int:

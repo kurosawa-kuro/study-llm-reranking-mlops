@@ -3,7 +3,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from src.infra.engagement import apply_feedback
+from src.infra.repositories.engagement import apply_feedback
 
 router = APIRouter()
 

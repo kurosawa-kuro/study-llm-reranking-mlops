@@ -11,7 +11,7 @@ from psycopg.types.json import Jsonb
 from src.batch.evaluation.metrics.evaluation_store import insert_offline_eval_report
 from src.batch.evaluation.metrics.kpi_utils import compute_kpi_metrics
 from src.eval.offline_metrics import compute_offline_metrics
-from src.infra.db import get_db_connection
+from src.infra.database.db import get_db_connection
 
 REPORT_DIR = Path("/app/artifacts/reports")
 
