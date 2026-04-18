@@ -1,25 +1,8 @@
 from __future__ import annotations
 
-from psycopg.rows import dict_row
-
-from src.infra.db import get_db_connection
+from src.batch.evaluation_store import latest_adoption_decision
 from src.ml.train_lgbm import train_model
-from src.ml.training_data import write_csv, fetch_training_rows
-
-
-def latest_adoption_decision() -> dict | None:
-    """model_adoption_decisions の最新レコードを返す。"""
-    with get_db_connection() as conn:
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(
-                """
-                SELECT id, adopt_lgbm, reason, evaluated_at
-                FROM model_adoption_decisions
-                ORDER BY id DESC
-                LIMIT 1;
-                """
-            )
-            return cur.fetchone()
+from src.ml.training_data import fetch_training_rows, write_csv
 
 
 def run_weekly_retrain() -> dict[str, object]:

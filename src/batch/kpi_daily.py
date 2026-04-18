@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from datetime import date
 
+from src.batch.kpi_utils import compute_kpi_metrics
 from src.infra.db import get_db_connection
 
 
@@ -28,10 +29,12 @@ def upsert_kpi_for_day(target_date: date) -> dict[str, float | int | str]:
             favorites = int(favorites)
             inquiries = int(inquiries)
 
-            ctr = (clicks / impressions) if impressions > 0 else 0.0
-            favorite_rate = (favorites / impressions) if impressions > 0 else 0.0
-            inquiry_rate = (inquiries / impressions) if impressions > 0 else 0.0
-            cvr = (inquiries / clicks) if clicks > 0 else 0.0
+            metrics = compute_kpi_metrics(
+                impressions=impressions,
+                clicks=clicks,
+                favorites=favorites,
+                inquiries=inquiries,
+            )
 
             cur.execute(
                 """
@@ -63,30 +66,20 @@ def upsert_kpi_for_day(target_date: date) -> dict[str, float | int | str]:
                 """,
                 (
                     target_date,
-                    impressions,
-                    clicks,
-                    favorites,
-                    inquiries,
-                    ctr,
-                    favorite_rate,
-                    inquiry_rate,
-                    cvr,
+                    metrics["impressions"],
+                    metrics["clicks"],
+                    metrics["favorites"],
+                    metrics["inquiries"],
+                    metrics["ctr"],
+                    metrics["favorite_rate"],
+                    metrics["inquiry_rate"],
+                    metrics["cvr"],
                 ),
             )
 
         conn.commit()
 
-    return {
-        "stat_date": target_date.isoformat(),
-        "impressions": impressions,
-        "clicks": clicks,
-        "favorites": favorites,
-        "inquiries": inquiries,
-        "ctr": round(ctr, 6),
-        "favorite_rate": round(favorite_rate, 6),
-        "inquiry_rate": round(inquiry_rate, 6),
-        "cvr": round(cvr, 6),
-    }
+    return {"stat_date": target_date.isoformat(), **metrics}
 
 
 def parse_args() -> argparse.Namespace:

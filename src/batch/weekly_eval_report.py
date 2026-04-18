@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-import json
 import os
 from datetime import date
 from pathlib import Path
@@ -9,53 +8,18 @@ from pathlib import Path
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from src.batch.evaluation_store import insert_offline_eval_report
+from src.batch.kpi_utils import compute_kpi_metrics
 from src.eval.offline_metrics import compute_offline_metrics
 from src.infra.db import get_db_connection
 
 REPORT_DIR = Path("/app/artifacts/reports")
 
 
-def ensure_latest_offline_eval() -> dict:
+def create_offline_eval_report() -> dict:
     """毎回最新のフィードバックデータで評価を再計算して保存する。"""
     metrics = compute_offline_metrics()
-    with get_db_connection() as conn:
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(
-                """
-                INSERT INTO offline_eval_reports (
-                    evaluated_queries,
-                    ndcg10_meili,
-                    ndcg10_lgbm,
-                    map_meili,
-                    map_lgbm,
-                    recall20_meili,
-                    recall20_lgbm
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                RETURNING
-                    id,
-                    evaluated_queries,
-                    ndcg10_meili,
-                    ndcg10_lgbm,
-                    map_meili,
-                    map_lgbm,
-                    recall20_meili,
-                    recall20_lgbm,
-                    created_at;
-                """,
-                (
-                    int(metrics["evaluated_queries"]),
-                    float(metrics["ndcg10_meili"]),
-                    float(metrics["ndcg10_lgbm"]),
-                    float(metrics["map_meili"]),
-                    float(metrics["map_lgbm"]),
-                    float(metrics["recall20_meili"]),
-                    float(metrics["recall20_lgbm"]),
-                ),
-            )
-            created = cur.fetchone()
-        conn.commit()
-    return created
+    return insert_offline_eval_report(metrics)
 
 
 def load_weekly_kpi() -> list[dict]:
@@ -101,21 +65,14 @@ def summarize_weekly_kpi(rows: list[dict]) -> dict[str, float | int]:
     favorites = sum(int(row["favorites"]) for row in rows)
     inquiries = sum(int(row["inquiries"]) for row in rows)
 
-    ctr = (clicks / impressions) if impressions > 0 else 0.0
-    favorite_rate = (favorites / impressions) if impressions > 0 else 0.0
-    inquiry_rate = (inquiries / impressions) if impressions > 0 else 0.0
-    cvr = (inquiries / clicks) if clicks > 0 else 0.0
-
     return {
         "days": len(rows),
-        "impressions": impressions,
-        "clicks": clicks,
-        "favorites": favorites,
-        "inquiries": inquiries,
-        "ctr": round(ctr, 6),
-        "favorite_rate": round(favorite_rate, 6),
-        "inquiry_rate": round(inquiry_rate, 6),
-        "cvr": round(cvr, 6),
+        **compute_kpi_metrics(
+            impressions=impressions,
+            clicks=clicks,
+            favorites=favorites,
+            inquiries=inquiries,
+        ),
     }
 
 
@@ -261,7 +218,7 @@ def write_reports(offline: dict, weekly_rows: list[dict], weekly_summary: dict, 
 
 
 def main() -> None:
-    offline = ensure_latest_offline_eval()
+    offline = create_offline_eval_report()
     weekly_rows = load_weekly_kpi()
     weekly_summary = summarize_weekly_kpi(weekly_rows)
 
