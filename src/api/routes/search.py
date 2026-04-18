@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from httpx import HTTPError
 
+from src.clients.redis_client import get_cached_search, set_cached_search
 from src.services.search.query_filter_builder import build_search_payload
 from src.services.search.property_search_service import run_ranked_search, safe_log_ranked_search
 
@@ -19,6 +20,21 @@ def search(
     limit: int = Query(default=20, ge=1, le=100),
     candidate_limit: int = Query(default=100, ge=1, le=200),
 ) -> dict:
+    cache_params = {
+        "q": q,
+        "city": city,
+        "layout": layout,
+        "price_lte": price_lte,
+        "pet": pet,
+        "walk_min": walk_min,
+        "limit": limit,
+        "candidate_limit": candidate_limit,
+    }
+
+    cached = get_cached_search(cache_params)
+    if cached is not None:
+        return cached
+
     payload = build_search_payload(
         q=q,
         city=city,
@@ -45,9 +61,13 @@ def search(
         search_result=search_result,
     )
 
-    return {
+    response = {
         "search_log_id": search_log_id,
         "compare_log_id": compare_log_id,
         "count": len(search_result.items),
         "items": search_result.items,
     }
+
+    set_cached_search(cache_params, response)
+
+    return response

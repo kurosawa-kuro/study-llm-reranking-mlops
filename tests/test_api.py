@@ -39,6 +39,10 @@ _FAKE_ITEMS = [
 def test_search_happy_path():
     with (
         patch(
+            "src.api.routes.search.get_cached_search",
+            return_value=None,
+        ),
+        patch(
             "src.api.routes.search.run_ranked_search",
             return_value=_FakeSearchResult(items=_FAKE_ITEMS),
         ),
@@ -46,6 +50,7 @@ def test_search_happy_path():
             "src.api.routes.search.safe_log_ranked_search",
             return_value=(42, 7),
         ),
+        patch("src.api.routes.search.set_cached_search"),
     ):
         resp = client.get("/search", params={"q": "マンション", "city": "札幌市"})
 
@@ -55,6 +60,23 @@ def test_search_happy_path():
     assert body["compare_log_id"] == 7
     assert body["count"] == 2
     assert body["items"][0]["id"] == 1
+
+
+def test_search_cache_hit():
+    cached_response = {
+        "search_log_id": 99,
+        "compare_log_id": 5,
+        "count": 1,
+        "items": [{"id": 10, "title": "キャッシュ物件"}],
+    }
+    with patch(
+        "src.api.routes.search.get_cached_search",
+        return_value=cached_response,
+    ):
+        resp = client.get("/search", params={"q": "マンション"})
+
+    assert resp.status_code == 200
+    assert resp.json()["search_log_id"] == 99
 
 
 # ---------------------------------------------------------------------------
