@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query
 from httpx import HTTPError
 
-from src.search.query_builder import build_search_payload
-from src.search.search_service import run_ranked_search, safe_log_ranked_search
+from src.services.search.query_filter_builder import build_search_payload
+from src.services.search.property_search_service import run_ranked_search, safe_log_ranked_search
 
 router = APIRouter()
 
