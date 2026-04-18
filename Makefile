@@ -1,3 +1,30 @@
+.PHONY: \
+	help up build down logs health \
+	phase1-migrate phase1-seed phase1-sync phase1-bootstrap phase1-search-check \
+	phase2-migrate phase2-bootstrap phase2-feedback-check \
+	phase3-migrate phase3-bootstrap phase3-daily phase3-feature-check \
+	phase4-migrate phase4-generate-embeddings phase4-bootstrap phase4-daily phase4-feature-check phase4-search-check \
+	phase5-migrate phase5-generate-train phase5-train phase5-label-seed phase5-bootstrap phase5-search-check phase5-compare-check \
+	phase6-migrate phase6-offline-eval phase6-kpi-daily phase6-weekly-report phase6-weekly-retrain phase6-bootstrap \
+	ops-daily ops-weekly ops-bootstrap verify-pipeline
+
+help:
+	@echo "Available targets:" \
+	&& echo "  Core:" \
+	&& echo "    make up|build|down|logs|health" \
+	&& echo "  Phase bootstrap:" \
+	&& echo "    make phase1-bootstrap" \
+	&& echo "    make phase2-bootstrap" \
+	&& echo "    make phase3-bootstrap" \
+	&& echo "    make phase4-bootstrap" \
+	&& echo "    make phase5-bootstrap" \
+	&& echo "    make phase6-bootstrap" \
+	&& echo "  Operation:" \
+	&& echo "    make ops-bootstrap  # phase1-6 migrate/bootstrap for initial setup" \
+	&& echo "    make ops-daily      # daily sync/feature/embed/kpi tasks" \
+	&& echo "    make ops-weekly     # weekly evaluate/report/retrain tasks" \
+	&& echo "    make verify-pipeline # representative end-to-end checks"
+
 up:
 	docker compose up -d
 
@@ -104,4 +131,27 @@ phase6-weekly-retrain:
 	docker compose exec -T api python -m src.batch.training.weekly_retrain
 
 phase6-bootstrap: phase6-migrate phase6-kpi-daily phase6-offline-eval phase6-weekly-report
+
+ops-bootstrap: phase1-bootstrap phase2-bootstrap phase3-bootstrap phase4-bootstrap phase5-bootstrap phase6-bootstrap
+
+ops-daily:
+	$(MAKE) phase1-sync
+	$(MAKE) phase3-daily
+	$(MAKE) phase4-generate-embeddings
+	$(MAKE) phase6-kpi-daily
+
+ops-weekly:
+	$(MAKE) phase5-compare-check
+	$(MAKE) phase6-offline-eval
+	$(MAKE) phase6-weekly-report
+	$(MAKE) phase6-weekly-retrain
+
+verify-pipeline:
+	$(MAKE) health
+	$(MAKE) phase1-search-check
+	$(MAKE) phase2-feedback-check
+	$(MAKE) phase4-search-check
+	$(MAKE) phase5-search-check
+	$(MAKE) phase5-compare-check
+	$(MAKE) phase6-offline-eval
 
