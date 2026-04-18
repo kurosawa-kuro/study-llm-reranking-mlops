@@ -4,7 +4,7 @@ from typing import Literal
 
 from psycopg.types.json import Jsonb
 
-from src.repositories.db import get_db_connection
+from src.core.db import get_db_connection
 
 FeedbackAction = Literal["click", "favorite", "inquiry"]
 

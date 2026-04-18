@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.repositories.db import get_db_connection
+from src.core.db import get_db_connection
 from src.services.ranking.feature_service import (
     recalculate_property_stats,
     remove_inactive_features,

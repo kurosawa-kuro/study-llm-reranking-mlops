@@ -99,10 +99,10 @@ phase5-migrate:
 	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/007_phase5_ranking_compare_logs.sql
 
 phase5-generate-train:
-	docker compose exec -T api python -m src.training.training_dataset_builder
+	docker compose exec -T api python -m src.trainers.training_dataset_builder
 
 phase5-train:
-	docker compose exec -T api python -m src.training.lgbm_trainer
+	docker compose exec -T api python -m src.trainers.lgbm_trainer
 
 phase5-label-seed:
 	bash -lc 'for action in click favorite inquiry; do RESP=$$(curl -sG "http://localhost:8000/search" --data-urlencode "q=札幌" --data-urlencode "layout=2LDK" --data-urlencode "price_lte=90000" --data-urlencode "pet=true" --data-urlencode "user_id=1"); LOG_ID=$$(printf "%s" "$$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get(\"search_log_id\",\"\"))" 2>/dev/null || true); PID=$$(printf "%s" "$$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); items=d.get(\"items\",[]); print(items[0].get(\"id\",\"\") if items else \"\")" 2>/dev/null || true); if [ -n "$$LOG_ID" ] && [ -n "$$PID" ]; then curl -s -X POST "http://localhost:8000/feedback" -H "Content-Type: application/json" -d "{\"user_id\":1,\"property_id\":$${PID},\"action\":\"$${action}\",\"search_log_id\":$${LOG_ID}}" > /dev/null; fi; done; echo "phase5-label-seed completed"'

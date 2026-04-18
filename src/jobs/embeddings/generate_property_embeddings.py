@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from psycopg.rows import dict_row
 
-from src.repositories.db import get_db_connection
+from src.core.db import get_db_connection
 from src.repositories.property_embedding_repository import upsert_property_embeddings
 from src.services.embeddings.me5_embedding_service import encode_passages, get_embedder
 

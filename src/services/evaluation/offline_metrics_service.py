@@ -5,7 +5,7 @@ from typing import TypedDict
 
 from psycopg.rows import dict_row
 
-from src.repositories.db import get_db_connection
+from src.core.db import get_db_connection
 
 
 class OfflineMetrics(TypedDict):

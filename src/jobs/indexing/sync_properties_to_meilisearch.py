@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from psycopg.rows import dict_row
 
-from src.repositories.db import get_db_connection
+from src.core.db import get_db_connection
 from src.clients.meilisearch_client import MeiliClient
 
 
