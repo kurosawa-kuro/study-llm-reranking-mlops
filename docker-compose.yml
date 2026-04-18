@@ -9,7 +9,7 @@ services:
       - postgres
       - meilisearch
     env_file:
-      - .env.example
+      - .env
 
   postgres:
     image: postgres:16

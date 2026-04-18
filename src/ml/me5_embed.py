@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import threading
 from typing import Iterable
 
 
@@ -36,13 +37,16 @@ class Embedder:
 
 
 _embedder: Embedder | None = None
+_embedder_lock = threading.Lock()
 
 
 def get_embedder() -> Embedder:
     global _embedder
     if _embedder is None:
-        model_name = os.getenv("ME5_MODEL_NAME", "intfloat/multilingual-e5-large")
-        _embedder = Embedder(model_name)
+        with _embedder_lock:
+            if _embedder is None:
+                model_name = os.getenv("ME5_MODEL_NAME", "intfloat/multilingual-e5-large")
+                _embedder = Embedder(model_name)
     return _embedder
 
 

@@ -16,31 +16,9 @@ REPORT_DIR = Path("/app/artifacts/reports")
 
 
 def ensure_latest_offline_eval() -> dict:
+    """毎回最新のフィードバックデータで評価を再計算して保存する。"""
+    metrics = compute_offline_metrics()
     with get_db_connection() as conn:
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(
-                """
-                SELECT
-                    id,
-                    evaluated_queries,
-                    ndcg10_meili,
-                    ndcg10_lgbm,
-                    map_meili,
-                    map_lgbm,
-                    recall20_meili,
-                    recall20_lgbm,
-                    created_at
-                FROM offline_eval_reports
-                ORDER BY id DESC
-                LIMIT 1;
-                """
-            )
-            row = cur.fetchone()
-
-        if row is not None:
-            return row
-
-        metrics = compute_offline_metrics()
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
                 """
@@ -77,7 +55,7 @@ def ensure_latest_offline_eval() -> dict:
             )
             created = cur.fetchone()
         conn.commit()
-        return created
+    return created
 
 
 def load_weekly_kpi() -> list[dict]:

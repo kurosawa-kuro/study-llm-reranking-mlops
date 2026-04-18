@@ -31,14 +31,17 @@ def log_search_and_increment_impressions(
             )
             search_log_id = int(cur.fetchone()[0])
 
-            for property_id in result_ids:
+            # バルク UPSERT — 個別ループを廃止してパフォーマンスを改善
+            if result_ids:
                 cur.execute(
                     """
                     INSERT INTO property_stats (
                         property_id, impression, click, favorite, inquiry,
                         ctr, fav_rate, inquiry_rate, updated_at
                     )
-                    VALUES (%s, 1, 0, 0, 0, 0, 0, 0, NOW())
+                    SELECT
+                        unnest(%s::bigint[]),
+                        1, 0, 0, 0, 0, 0, 0, NOW()
                     ON CONFLICT (property_id) DO UPDATE
                     SET
                         impression = property_stats.impression + 1,
@@ -59,7 +62,7 @@ def log_search_and_increment_impressions(
                         END,
                         updated_at = NOW();
                     """,
-                    (property_id,),
+                    (result_ids,),
                 )
 
         conn.commit()

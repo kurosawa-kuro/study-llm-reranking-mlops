@@ -20,7 +20,7 @@ FEATURE_COLUMNS = [
 ]
 
 _MODEL = None
-_MODEL_AVAILABLE = False
+_MODEL_MTIME: float | None = None  # 最後にロードした際のファイル更新時刻
 
 
 def _model_path() -> Path:
@@ -28,26 +28,34 @@ def _model_path() -> Path:
 
 
 def _load_model():
-    global _MODEL
-    global _MODEL_AVAILABLE
+    """モデルファイルの mtime が変わっていれば再ロードする。"""
+    global _MODEL, _MODEL_MTIME
 
-    if _MODEL_AVAILABLE:
+    path = _model_path()
+    if not path.exists():
+        _MODEL = None
+        _MODEL_MTIME = None
+        return None
+
+    try:
+        current_mtime = path.stat().st_mtime
+    except OSError:
+        _MODEL = None
+        _MODEL_MTIME = None
+        return None
+
+    if _MODEL is not None and _MODEL_MTIME == current_mtime:
         return _MODEL
-
-    _MODEL_AVAILABLE = True
 
     try:
         import lightgbm as lgb
     except Exception:  # noqa: BLE001
         _MODEL = None
-        return None
-
-    path = _model_path()
-    if not path.exists():
-        _MODEL = None
+        _MODEL_MTIME = None
         return None
 
     _MODEL = lgb.Booster(model_file=str(path))
+    _MODEL_MTIME = current_mtime
     return _MODEL
 
 

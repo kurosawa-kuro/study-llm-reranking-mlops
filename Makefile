@@ -100,5 +100,8 @@ phase6-kpi-daily:
 phase6-weekly-report:
 	docker compose exec -T api python -m src.batch.weekly_eval_report
 
+phase6-weekly-retrain:
+	docker compose exec -T api python -m src.batch.weekly_retrain
+
 phase6-bootstrap: phase6-migrate phase6-kpi-daily phase6-offline-eval phase6-weekly-report
 

@@ -14,6 +14,7 @@ router = APIRouter()
 
 
 def apply_me5_rerank(query: str, items: list[dict]) -> list[dict]:
+    """ME5 スコアを各アイテムに付与する。ソートは LightGBM 再ランク後に一括して行う。"""
     if not items:
         return items
 
@@ -35,7 +36,7 @@ def apply_me5_rerank(query: str, items: list[dict]) -> list[dict]:
                 score = cosine_similarity(query_vector, doc_vector)
         item["me5_score"] = float(round(score, 6))
 
-    items.sort(key=lambda x: x.get("me5_score", 0.0), reverse=True)
+    # ソートは行わない（LightGBM が me5_score を特徴量として使い、最終ソートを担う）
     return items
 
 
@@ -68,7 +69,8 @@ def search(
     except HTTPError as exc:
         raise HTTPException(status_code=502, detail="Search backend unavailable") from exc
 
-    hits = result.get("hits", [])[:limit]
+    # candidate_limit 件を全件取得して再ランク対象とする（上位 limit 件への絞り込みは再ランク後）
+    hits = result.get("hits", [])[:candidate_limit]
     meili_items = [
         {
             "id": hit.get("id"),
@@ -89,19 +91,29 @@ def search(
     items = apply_me5_rerank(q, items)
     items = rerank_with_lgbm(items)
 
+    # 再ランク済み候補から上位 limit 件を返却
+    items = items[:limit]
+
     result_ids = [item["id"] for item in items if item.get("id") is not None]
     me5_scores = [float(item.get("me5_score", 0.0)) for item in items if item.get("id") is not None]
-    search_log_id = log_search_and_increment_impressions(
-        query=q,
-        user_id=user_id,
-        result_ids=result_ids,
-        me5_scores=me5_scores,
-    )
-    compare_log_id = log_ranking_comparison(
-        search_log_id=search_log_id,
-        meili_result_ids=meili_result_ids,
-        reranked_result_ids=result_ids,
-    )
+
+    # ログ・比較ログの失敗は検索結果返却に影響させない
+    search_log_id: int | None = None
+    compare_log_id: int | None = None
+    try:
+        search_log_id = log_search_and_increment_impressions(
+            query=q,
+            user_id=user_id,
+            result_ids=result_ids,
+            me5_scores=me5_scores,
+        )
+        compare_log_id = log_ranking_comparison(
+            search_log_id=search_log_id,
+            meili_result_ids=meili_result_ids,
+            reranked_result_ids=result_ids,
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
     return {
         "search_log_id": search_log_id,
