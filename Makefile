@@ -20,7 +20,7 @@ phase1-seed:
 	docker compose exec -T api python -m src.batch.maintenance.run_sql src/infra/migrations/002_seed_properties.sql
 
 phase1-sync:
-	docker compose exec -T api python -m src.batch.embeddings.meili_sync
+	docker compose exec -T api python -m src.batch.search_index.meili_sync
 
 phase1-bootstrap: phase1-migrate phase1-seed phase1-sync
 
@@ -86,19 +86,19 @@ phase5-search-check:
 	bash -lc 'for i in 1 2 3 4 5 6 7 8 9 10; do RESP=$$(curl -sG "http://localhost:8000/search" --data-urlencode "q=札幌" --data-urlencode "layout=2LDK" --data-urlencode "price_lte=90000" --data-urlencode "pet=true" --data-urlencode "user_id=1"); if printf "%s" "$$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); first=(d.get(\"items\") or [{}])[0]; print(\"search_log_id=\", d.get(\"search_log_id\")); print(\"first_item_id=\", first.get(\"id\")); print(\"first_item_lgbm_score=\", first.get(\"lgbm_score\")); print(\"first_item_me5_score=\", first.get(\"me5_score\"));" 2>/dev/null; then exit 0; fi; sleep 1; done; echo "phase5-search-check failed: API did not return valid JSON"; exit 1'
 
 phase5-compare-check:
-	docker compose exec -T api python -m src.batch.evaluation.ranking_compare_report
+	docker compose exec -T api python -m src.batch.evaluation.reports.ranking_compare_report
 
 phase6-migrate:
 	docker compose exec -T api python -m src.batch.maintenance.run_sql src/infra/migrations/008_phase6_eval_and_kpi.sql
 
 phase6-offline-eval:
-	docker compose exec -T api python -m src.batch.evaluation.offline_eval
+	docker compose exec -T api python -m src.batch.evaluation.metrics.offline_eval
 
 phase6-kpi-daily:
-	docker compose exec -T api python -m src.batch.evaluation.kpi_daily
+	docker compose exec -T api python -m src.batch.evaluation.metrics.kpi_daily
 
 phase6-weekly-report:
-	docker compose exec -T api python -m src.batch.evaluation.weekly_eval_report
+	docker compose exec -T api python -m src.batch.evaluation.reports.weekly_eval_report
 
 phase6-weekly-retrain:
 	docker compose exec -T api python -m src.batch.training.weekly_retrain
