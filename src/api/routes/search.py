@@ -1,18 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException
 from httpx import HTTPError
 
+from src.adapters.inbound.fastapi.dependencies import get_search_properties_usecase
 from src.api.schemas import SearchParams
-from src.clients.redis_client import get_cached_search, set_cached_search
-from src.core.logging import get_logger, RequestContextVar
-from src.services.search.query_filter_builder import build_search_payload
-from src.services.search.property_search_service import run_ranked_search, safe_log_ranked_search
+from src.application.usecases.search_properties import SearchPropertiesUseCase
+from src.core.logging import RequestContextVar, get_logger
+from src.ports.inbound.search_usecase import SearchQuery
 
 logger = get_logger(__name__)
 router = APIRouter()
 
 
 @router.get("/search")
-def search(params: SearchParams = Depends()) -> dict:
+def search(
+    params: SearchParams = Depends(),
+    usecase: SearchPropertiesUseCase = Depends(get_search_properties_usecase),
+) -> dict:
     request_id = RequestContextVar.get("request_id", "unknown")
     logger.info(
         "search_started",
@@ -26,93 +29,46 @@ def search(params: SearchParams = Depends()) -> dict:
         },
     )
 
-    cache_params = {
-        "q": params.q,
-        "city": params.city,
-        "layout": params.layout,
-        "price_lte": params.price_lte,
-        "pet": params.pet,
-        "walk_min": params.walk_min,
-        "limit": params.limit,
-        "candidate_limit": params.candidate_limit,
-    }
-
-    cached = get_cached_search(cache_params)
-    if cached is not None:
-        logger.info(
-            "search_completed_from_cache",
-            extra={
-                "request_id": request_id,
-                "user_id": params.user_id or "anonymous",
-                "result_count": cached.get("count", 0),
-            },
-        )
-        return cached
-
-    payload = build_search_payload(
+    query = SearchQuery(
         q=params.q,
+        user_id=params.user_id,
         city=params.city,
         layout=params.layout,
         price_lte=params.price_lte,
         pet=params.pet,
         walk_min=params.walk_min,
+        limit=params.limit,
         candidate_limit=params.candidate_limit,
     )
 
     try:
-        search_result = run_ranked_search(
-            query=params.q,
-            payload=payload,
-            limit=params.limit,
-            candidate_limit=params.candidate_limit,
-        )
+        response = usecase.execute(query)
     except HTTPError as exc:
         logger.error(
             "search_backend_error",
-            extra={
-                "request_id": request_id,
-                "user_id": params.user_id or "anonymous",
-                "error": str(exc),
-                "error_type": "HTTPError",
-            },
+            extra={"request_id": request_id, "error": str(exc), "error_type": "HTTPError"},
         )
         raise HTTPException(status_code=502, detail="Search backend unavailable") from exc
     except TimeoutError as exc:
         logger.error(
             "search_timeout",
-            extra={
-                "request_id": request_id,
-                "user_id": params.user_id or "anonymous",
-                "error": str(exc),
-            },
+            extra={"request_id": request_id, "error": str(exc)},
         )
         raise HTTPException(status_code=504, detail="Search request timed out") from exc
     except Exception as exc:
         logger.error(
             "search_unexpected_error",
-            extra={
-                "request_id": request_id,
-                "user_id": params.user_id or "anonymous",
-                "error": str(exc),
-                "error_type": type(exc).__name__,
-            },
+            extra={"request_id": request_id, "error": str(exc), "error_type": type(exc).__name__},
             exc_info=True,
         )
         raise HTTPException(status_code=500, detail="Search failed") from exc
 
-    search_log_id, compare_log_id = safe_log_ranked_search(
-        query=params.q,
-        user_id=params.user_id,
-        search_result=search_result,
+    logger.info(
+        "search_completed",
+        extra={
+            "request_id": request_id,
+            "user_id": params.user_id or "anonymous",
+            "result_count": response.get("count", 0),
+        },
     )
-
-    response = {
-        "search_log_id": search_log_id,
-        "compare_log_id": compare_log_id,
-        "count": len(search_result.items),
-        "items": search_result.items,
-    }
-
-    set_cached_search(cache_params, response)
-
     return response

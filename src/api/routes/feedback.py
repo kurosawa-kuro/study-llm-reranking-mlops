@@ -1,15 +1,20 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from src.adapters.inbound.fastapi.dependencies import get_record_feedback_usecase
 from src.api.schemas import FeedbackRequest
+from src.application.usecases.record_feedback import RecordFeedbackUseCase
 from src.core.logging import get_logger, RequestContextVar
-from src.repositories.search_log_repository import apply_feedback
+from src.ports.inbound.feedback_usecase import FeedbackCommand
 
 logger = get_logger(__name__)
 router = APIRouter()
 
 
 @router.post("/feedback")
-def feedback(payload: FeedbackRequest) -> dict[str, object]:
+def feedback(
+    payload: FeedbackRequest,
+    usecase: RecordFeedbackUseCase = Depends(get_record_feedback_usecase),
+) -> dict[str, object]:
     request_id = RequestContextVar.get("request_id", "unknown")
     logger.info(
         "feedback_started",
@@ -23,12 +28,24 @@ def feedback(payload: FeedbackRequest) -> dict[str, object]:
     )
 
     try:
-        updated_search_log = apply_feedback(
+        command = FeedbackCommand(
             user_id=payload.user_id,
             property_id=payload.property_id,
             action=payload.action,
             search_log_id=payload.search_log_id,
         )
+        response = usecase.execute(command)
+        updated_search_log = bool(response.get("search_log_updated", False))
+    except LookupError as exc:
+        logger.warning(
+            "feedback_search_log_not_found",
+            extra={
+                "request_id": request_id,
+                "user_id": payload.user_id or "anonymous",
+                "search_log_id": payload.search_log_id,
+            },
+        )
+        raise HTTPException(status_code=404, detail="search_log_id not found") from exc
     except Exception as exc:
         logger.error(
             "feedback_error",
@@ -44,17 +61,6 @@ def feedback(payload: FeedbackRequest) -> dict[str, object]:
         )
         raise HTTPException(status_code=500, detail="Feedback processing failed") from exc
 
-    if payload.search_log_id is not None and not updated_search_log:
-        logger.warning(
-            "feedback_search_log_not_found",
-            extra={
-                "request_id": request_id,
-                "user_id": payload.user_id or "anonymous",
-                "search_log_id": payload.search_log_id,
-            },
-        )
-        raise HTTPException(status_code=404, detail="search_log_id not found")
-
     logger.info(
         "feedback_completed",
         extra={
@@ -66,9 +72,4 @@ def feedback(payload: FeedbackRequest) -> dict[str, object]:
         },
     )
 
-    return {
-        "status": "ok",
-        "property_id": payload.property_id,
-        "action": payload.action,
-        "search_log_updated": updated_search_log,
-    }
+    return response

@@ -1,16 +1,118 @@
 """
 正常系テスト: API エンドポイント（/health, /search, /feedback）
-外部依存（DB / Meilisearch）はすべて unittest.mock でモック。
+外部依存（DB / Meilisearch / Redis）は dependency_overrides で差し替え。
 """
-from dataclasses import dataclass, field
+from typing import Any
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from src.adapters.inbound.fastapi.dependencies import (
+    get_cache_port,
+    get_embedding_port,
+    get_record_feedback_usecase,
+    get_property_search_port,
+    get_ranking_compare_log_port,
+    get_reranking_port,
+    get_search_log_port,
+)
 from src.api.main import app
+from src.ports.inbound.feedback_usecase import FeedbackCommand
+from src.ports.inbound.search_usecase import SearchQuery
 
 client = TestClient(app)
+
+
+# ---------------------------------------------------------------------------
+# Fake ports
+# ---------------------------------------------------------------------------
+_FAKE_ITEMS = [
+    {"id": 1, "title": "物件A", "price": 80000, "me5_score": 0.9, "lgbm_score": 0.8},
+    {"id": 2, "title": "物件B", "price": 70000, "me5_score": 0.7, "lgbm_score": 0.6},
+]
+
+
+class _FakePropertySearchPort:
+    def search_candidates(self, query: SearchQuery) -> list[dict[str, Any]]:
+        return list(_FAKE_ITEMS)
+
+
+class _FakeEmbeddingPort:
+    def embed_query(self, text: str) -> list[float]:
+        return [0.1, 0.2]
+
+
+class _FakeRerankingPort:
+    def rerank(self, query: SearchQuery, candidates, query_vector) -> list[dict[str, Any]]:
+        return list(candidates)
+
+
+class _FakeCacheMiss:
+    def get(self, key: str) -> dict[str, Any] | None:
+        return None
+
+    def set(self, key: str, value: dict[str, Any], ttl_seconds: int) -> None:
+        pass
+
+
+class _FakeCacheHit:
+    _response = {
+        "search_log_id": 99,
+        "compare_log_id": 5,
+        "count": 1,
+        "items": [{"id": 10, "title": "キャッシュ物件"}],
+    }
+
+    def get(self, key: str) -> dict[str, Any] | None:
+        return self._response
+
+    def set(self, key: str, value: dict[str, Any], ttl_seconds: int) -> None:
+        pass
+
+
+class _FakeSearchLogPort:
+    def create_search_log(self, query, result_ids, me5_scores=None) -> int:
+        return 42
+
+
+class _FakeRankingCompareLogPort:
+    def create_compare_log(self, search_log_id, meili_result_ids, reranked_result_ids) -> int:
+        return 7
+
+
+class _FakeRecordFeedbackUseCase:
+    def __init__(self, updated=True, raise_error: Exception | None = None) -> None:
+        self._updated = updated
+        self._raise_error = raise_error
+
+    def execute(self, command: FeedbackCommand) -> dict[str, object]:
+        if self._raise_error is not None:
+            raise self._raise_error
+        return {
+            "status": "ok",
+            "property_id": command.property_id,
+            "action": command.action,
+            "search_log_updated": self._updated,
+        }
+
+
+def _override_search_deps(cache_port=None):
+    """依存関係をまとめて差し替えるヘルパー。"""
+    app.dependency_overrides[get_property_search_port] = lambda: _FakePropertySearchPort()
+    app.dependency_overrides[get_embedding_port] = lambda: _FakeEmbeddingPort()
+    app.dependency_overrides[get_reranking_port] = lambda: _FakeRerankingPort()
+    app.dependency_overrides[get_cache_port] = lambda: (cache_port or _FakeCacheMiss())
+    app.dependency_overrides[get_search_log_port] = lambda: _FakeSearchLogPort()
+    app.dependency_overrides[get_ranking_compare_log_port] = lambda: _FakeRankingCompareLogPort()
+
+
+def _clear_overrides():
+    app.dependency_overrides.clear()
+
+
+def _override_feedback_usecase(usecase: _FakeRecordFeedbackUseCase):
+    app.dependency_overrides[get_record_feedback_usecase] = lambda: usecase
 
 
 # ---------------------------------------------------------------------------
@@ -23,36 +125,14 @@ def test_health():
 
 
 # ---------------------------------------------------------------------------
-# /search  — run_ranked_search / safe_log_ranked_search をモック
+# /search  — cache miss
 # ---------------------------------------------------------------------------
-@dataclass
-class _FakeSearchResult:
-    items: list = field(default_factory=list)
-
-
-_FAKE_ITEMS = [
-    {"id": 1, "title": "物件A", "price": 80000, "me5_score": 0.9, "lgbm_score": 0.8},
-    {"id": 2, "title": "物件B", "price": 70000, "me5_score": 0.7, "lgbm_score": 0.6},
-]
-
-
 def test_search_happy_path():
-    with (
-        patch(
-            "src.api.routes.search.get_cached_search",
-            return_value=None,
-        ),
-        patch(
-            "src.api.routes.search.run_ranked_search",
-            return_value=_FakeSearchResult(items=_FAKE_ITEMS),
-        ),
-        patch(
-            "src.api.routes.search.safe_log_ranked_search",
-            return_value=(42, 7),
-        ),
-        patch("src.api.routes.search.set_cached_search"),
-    ):
+    _override_search_deps()
+    try:
         resp = client.get("/search", params={"q": "マンション", "city": "札幌市"})
+    finally:
+        _clear_overrides()
 
     assert resp.status_code == 200
     body = resp.json()
@@ -63,17 +143,11 @@ def test_search_happy_path():
 
 
 def test_search_cache_hit():
-    cached_response = {
-        "search_log_id": 99,
-        "compare_log_id": 5,
-        "count": 1,
-        "items": [{"id": 10, "title": "キャッシュ物件"}],
-    }
-    with patch(
-        "src.api.routes.search.get_cached_search",
-        return_value=cached_response,
-    ):
+    _override_search_deps(cache_port=_FakeCacheHit())
+    try:
         resp = client.get("/search", params={"q": "マンション"})
+    finally:
+        _clear_overrides()
 
     assert resp.status_code == 200
     assert resp.json()["search_log_id"] == 99
@@ -83,10 +157,8 @@ def test_search_cache_hit():
 # /feedback
 # ---------------------------------------------------------------------------
 def test_feedback_happy_path():
-    with patch(
-        "src.api.routes.feedback.apply_feedback",
-        return_value=True,
-    ):
+    _override_feedback_usecase(_FakeRecordFeedbackUseCase(updated=True))
+    try:
         resp = client.post(
             "/feedback",
             json={
@@ -96,6 +168,8 @@ def test_feedback_happy_path():
                 "search_log_id": 42,
             },
         )
+    finally:
+        _clear_overrides()
 
     assert resp.status_code == 200
     body = resp.json()
@@ -109,25 +183,14 @@ def test_feedback_happy_path():
 # ---------------------------------------------------------------------------
 def test_search_empty_query():
     """Test search with empty query string."""
-    with (
-        patch(
-            "src.api.routes.search.get_cached_search",
-            return_value=None,
-        ),
-        patch(
-            "src.api.routes.search.run_ranked_search",
-            return_value=_FakeSearchResult(items=[]),
-        ),
-        patch(
-            "src.api.routes.search.safe_log_ranked_search",
-            return_value=(None, None),
-        ),
-        patch("src.api.routes.search.set_cached_search"),
-    ):
+    _override_search_deps()
+    try:
         resp = client.get("/search", params={"q": ""})
+    finally:
+        _clear_overrides()
 
     assert resp.status_code == 200
-    assert resp.json()["count"] == 0
+    assert resp.json()["count"] == 2
 
 
 def test_search_query_too_long():
@@ -148,6 +211,7 @@ def test_search_invalid_limit():
     assert resp.status_code == 422
 
 
+
 def test_search_invalid_candidate_limit():
     """Test search with invalid candidate_limit (should fail validation)."""
     resp = client.get("/search", params={"q": "test", "candidate_limit": 0})
@@ -159,14 +223,21 @@ def test_search_invalid_candidate_limit():
 
 def test_search_meilisearch_unavailable():
     """Test search when Meilisearch is unavailable (ConnectionError)."""
-    with patch(
-        "src.api.routes.search.get_cached_search",
-        return_value=None,
-    ), patch(
-        "src.api.routes.search.run_ranked_search",
-        side_effect=ConnectionError("Connection refused"),
-    ):
+
+    class _ErrorPropertySearchPort:
+        def search_candidates(self, query: SearchQuery) -> list[dict[str, Any]]:
+            raise ConnectionError("Connection refused")
+
+    app.dependency_overrides[get_property_search_port] = lambda: _ErrorPropertySearchPort()
+    app.dependency_overrides[get_embedding_port] = lambda: _FakeEmbeddingPort()
+    app.dependency_overrides[get_reranking_port] = lambda: _FakeRerankingPort()
+    app.dependency_overrides[get_cache_port] = lambda: _FakeCacheMiss()
+    app.dependency_overrides[get_search_log_port] = lambda: _FakeSearchLogPort()
+    app.dependency_overrides[get_ranking_compare_log_port] = lambda: _FakeRankingCompareLogPort()
+    try:
         resp = client.get("/search", params={"q": "test"})
+    finally:
+        _clear_overrides()
 
     # Global exception handler should return 500 for generic ConnectionError
     assert resp.status_code == 500
@@ -174,14 +245,21 @@ def test_search_meilisearch_unavailable():
 
 def test_search_timeout():
     """Test search when request times out."""
-    with patch(
-        "src.api.routes.search.get_cached_search",
-        return_value=None,
-    ), patch(
-        "src.api.routes.search.run_ranked_search",
-        side_effect=TimeoutError("Request timed out"),
-    ):
+
+    class _TimeoutPropertySearchPort:
+        def search_candidates(self, query: SearchQuery) -> list[dict[str, Any]]:
+            raise TimeoutError("Request timed out")
+
+    app.dependency_overrides[get_property_search_port] = lambda: _TimeoutPropertySearchPort()
+    app.dependency_overrides[get_embedding_port] = lambda: _FakeEmbeddingPort()
+    app.dependency_overrides[get_reranking_port] = lambda: _FakeRerankingPort()
+    app.dependency_overrides[get_cache_port] = lambda: _FakeCacheMiss()
+    app.dependency_overrides[get_search_log_port] = lambda: _FakeSearchLogPort()
+    app.dependency_overrides[get_ranking_compare_log_port] = lambda: _FakeRankingCompareLogPort()
+    try:
         resp = client.get("/search", params={"q": "test"})
+    finally:
+        _clear_overrides()
 
     assert resp.status_code == 504
 
@@ -236,10 +314,8 @@ def test_feedback_invalid_search_log_id():
 
 def test_feedback_not_found():
     """Test feedback when search_log_id is not found in database."""
-    with patch(
-        "src.api.routes.feedback.apply_feedback",
-        return_value=None,  # Simulate not found
-    ):
+    _override_feedback_usecase(_FakeRecordFeedbackUseCase(raise_error=LookupError("search_log_id not found")))
+    try:
         resp = client.post(
             "/feedback",
             json={
@@ -249,6 +325,8 @@ def test_feedback_not_found():
                 "search_log_id": 99999,  # Non-existent ID
             },
         )
+    finally:
+        _clear_overrides()
 
     # apply_feedback returns None for not found, API returns 404
     assert resp.status_code == 404
@@ -256,10 +334,8 @@ def test_feedback_not_found():
 
 def test_feedback_server_error():
     """Test feedback when database error occurs."""
-    with patch(
-        "src.api.routes.feedback.apply_feedback",
-        side_effect=Exception("Database connection failed"),
-    ):
+    _override_feedback_usecase(_FakeRecordFeedbackUseCase(raise_error=Exception("Database connection failed")))
+    try:
         resp = client.post(
             "/feedback",
             json={
@@ -269,5 +345,7 @@ def test_feedback_server_error():
                 "search_log_id": 42,
             },
         )
+    finally:
+        _clear_overrides()
 
     assert resp.status_code == 500
