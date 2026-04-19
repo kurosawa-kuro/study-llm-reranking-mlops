@@ -1,5 +1,9 @@
+.DEFAULT_GOAL := help
+
+PYTHON := $(if $(wildcard .venv/bin/python),.venv/bin/python,$(if $(wildcard ../.venv/bin/python),../.venv/bin/python,python3))
+
 .PHONY: \
-	help up build down logs health \
+	help up build down logs health test dev-install api-refresh \
 	db-migrate-core db-seed-properties db-migrate-ops db-migrate-features db-migrate-embeddings db-migrate-learning db-migrate-eval \
 	search-sync search-check feedback-check ranking-check ranking-check-verbose \
 	features-daily features-report \
@@ -24,6 +28,9 @@ help:
 	&& echo "    make features-daily features-report embeddings-generate" \
 	&& echo "    make training-label-seed training-generate training-fit" \
 	&& echo "    make eval-offline kpi-daily eval-weekly-report retrain-weekly" \
+	&& echo "    make dev-install    # install runtime and dev dependencies into .venv if present" \
+	&& echo "    make test           # run local pytest in the active Python environment" \
+	&& echo "    make api-refresh    # rebuild and recreate only the api service" \
 	&& echo "  Operations:" \
 	&& echo "    make ops-bootstrap  # one-time setup (migrations + seed + index + model prep)" \
 	&& echo "    make ops-daily      # daily sync/feature/embed/kpi tasks" \
@@ -44,6 +51,16 @@ logs:
 
 health:
 	bash -lc 'for i in 1 2 3 4 5 6 7 8 9 10; do curl -fsS http://localhost:8000/health && exit 0; sleep 2; done; echo "health check failed"; exit 1'
+
+dev-install:
+	$(PYTHON) -m pip install -r requirements-dev.txt
+
+test:
+	$(PYTHON) -m pytest tests/ -v
+
+api-refresh:
+	docker compose build api
+	docker compose up -d --force-recreate api
 
 db-migrate-core:
 	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/001_create_properties.sql

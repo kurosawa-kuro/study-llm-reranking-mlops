@@ -5,6 +5,8 @@ services:
     restart: unless-stopped
     ports:
       - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./src:/app/src
     depends_on:
       - postgres
       - meilisearch
@@ -25,7 +27,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   pgadmin:
-    image: dpage/pgadmin4
+    image: dpage/pgadmin4:9.14
     container_name: real-estate-pgadmin
     restart: always
     environment:

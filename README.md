@@ -64,6 +64,22 @@
 - `tests/services/...`（検索・埋め込み・評価ロジック）
 - 実行コマンド: `python3 -m pytest tests/ -v`
 
+## ローカル開発セットアップ
+
+1. Python 仮想環境を作成して有効化
+
+	python3 -m venv .venv
+	source .venv/bin/activate
+
+2. ランタイム依存と開発依存をまとめて導入
+
+	pip install -r requirements-dev.txt
+
+補足:
+
+- `requirements-dev.txt` は `requirements.txt` を取り込み、開発用の `pytest` を追加で導入します
+- Docker 実行だけでなくローカルで `pytest` を回す場合もこの手順を前提にします
+
 ## 起動
 
 1. コンテナ起動
@@ -98,6 +114,11 @@
 
 - 新規運用は責務ベースターゲット（`search-sync`, `features-daily`, `training-fit` など）を使用
 - `phase*` ターゲットは後方互換 alias としてのみ残置
+- `make verify-pipeline` は `health` / `search-check` / `feedback-check` / `ranking-check` / `ranking-check-verbose` / `eval-compare` / `eval-offline` を順に実行します
+- `src` 配下の構成変更やブランチ切替後に API コンテナが古いイメージを参照していると、`src.jobs...` などの import で失敗することがあります。その場合は次を実行して API イメージを再作成してください
+
+	docker compose build api
+	docker compose up -d --force-recreate api
 
 ## アクセス先
 
