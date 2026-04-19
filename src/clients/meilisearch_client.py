@@ -6,6 +6,7 @@ from typing import Any
 
 import httpx
 
+from src.core.exceptions import MeilisearchTaskError, MeilisearchTimeoutError
 from src.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -90,10 +91,12 @@ class MeiliClient:
                 return
 
             if status in {"failed", "canceled"}:
-                raise RuntimeError(f"Meilisearch task failed: uid={task_uid}, status={status}, detail={task}")
+                raise MeilisearchTaskError(
+                    f"Meilisearch task failed: uid={task_uid}, status={status}, detail={task}"
+                )
 
             if time.monotonic() - started_at > self.task_timeout_seconds:
-                raise TimeoutError(
+                raise MeilisearchTimeoutError(
                     f"Meilisearch task timed out: uid={task_uid}, timeout={self.task_timeout_seconds}s"
                 )
 

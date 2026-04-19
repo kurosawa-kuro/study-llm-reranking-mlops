@@ -1,20 +1,11 @@
-from typing import Literal
-
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 
+from src.api.schemas import FeedbackRequest
 from src.core.logging import get_logger, RequestContextVar
 from src.repositories.search_log_repository import apply_feedback
 
 logger = get_logger(__name__)
 router = APIRouter()
-
-
-class FeedbackRequest(BaseModel):
-    user_id: int | None = None
-    property_id: int
-    action: Literal["click", "favorite", "inquiry"]
-    search_log_id: int | None = None
 
 
 @router.post("/feedback")

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from src.api.schemas import PropertyItem
 from src.core.logging import get_logger, RequestContextVar
 from src.repositories.search_log_repository import log_search_and_increment_impressions
 from src.repositories.property_embedding_repository import fetch_property_embeddings
@@ -14,12 +15,11 @@ from src.clients.meilisearch_client import MeiliClient
 
 logger = get_logger(__name__)
 
-SearchItem = dict[str, Any]
 
 
 @dataclass(slots=True)
 class RankedSearchResult:
-    items: list[SearchItem]
+    items: list[PropertyItem | dict[str, Any]]
     meili_result_ids: list[int]
     result_ids: list[int]
     me5_scores: list[float]

@@ -38,27 +38,30 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         # Record start time
         start_time = time.time()
 
+        response: Response | None = None
         try:
             response = await call_next(request)
         finally:
             # Calculate elapsed time
             elapsed_time = time.time() - start_time
 
-            # Log request completion
-            logger.info(
-                f"{request.method} {request.url.path} - {response.status_code}",
-                extra={
-                    "request_id": request_id,
-                    "method": request.method,
-                    "path": request.url.path,
-                    "status_code": response.status_code,
-                    "elapsed_time_ms": round(elapsed_time * 1000, 2),
-                    "user_id": user_id or "anonymous",
-                },
-            )
+            # Log request completion (only if response exists)
+            if response is not None:
+                logger.info(
+                    f"{request.method} {request.url.path} - {response.status_code}",
+                    extra={
+                        "request_id": request_id,
+                        "method": request.method,
+                        "path": request.url.path,
+                        "status_code": response.status_code,
+                        "elapsed_time_ms": round(elapsed_time * 1000, 2),
+                        "user_id": user_id or "anonymous",
+                    },
+                )
 
-        # Add request ID to response headers
-        response.headers["X-Request-ID"] = request_id
+        # Add request ID to response headers (if response exists)
+        if response is not None:
+            response.headers["X-Request-ID"] = request_id
         return response
 
 
