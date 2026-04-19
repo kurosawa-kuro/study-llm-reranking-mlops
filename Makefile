@@ -71,17 +71,17 @@ db-migrate-ops:
 	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/003_create_logs_and_stats.sql
 
 db-migrate-features:
-	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/004_phase3_features_and_batch_logs.sql
+	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/004_features_and_batch_logs.sql
 
 db-migrate-embeddings:
-	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/005_phase4_me5.sql
+	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/005_me5.sql
 
 db-migrate-learning:
-	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/006_phase5_learning_logs.sql
-	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/007_phase5_ranking_compare_logs.sql
+	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/006_learning_logs.sql
+	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/007_ranking_compare_logs.sql
 
 db-migrate-eval:
-	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/008_phase6_eval_and_kpi.sql
+	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/008_eval_and_kpi.sql
 
 search-sync:
 	docker compose exec -T api python -m src.jobs.indexing.sync_properties_to_meilisearch

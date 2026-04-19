@@ -16,7 +16,7 @@ def main() -> int:
                 if resp.status == 200:
                     print(body, end="")
                     return 0
-        except urllib.error.URLError:
+        except (urllib.error.URLError, OSError, ConnectionError):
             pass
         time.sleep(2)
 

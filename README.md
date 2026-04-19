@@ -113,7 +113,6 @@
 補足:
 
 - 新規運用は責務ベースターゲット（`search-sync`, `features-daily`, `training-fit` など）を使用
-- `phase*` ターゲットは後方互換 alias としてのみ残置
 - `make verify-pipeline` は `health` / `search-check` / `feedback-check` / `ranking-check` / `ranking-check-verbose` / `eval-compare` / `eval-offline` を順に実行します
 - `src` 配下の構成変更やブランチ切替後に API コンテナが古いイメージを参照していると、`src.jobs...` などの import で失敗することがあります。その場合は次を実行して API イメージを再作成してください
 
