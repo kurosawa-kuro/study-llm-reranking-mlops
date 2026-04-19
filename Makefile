@@ -4,6 +4,7 @@ PYTHON := $(if $(wildcard .venv/bin/python),.venv/bin/python,$(if $(wildcard ../
 
 .PHONY: \
 	help up build down logs health test dev-install api-refresh \
+	check-layers \
 	db-migrate-core db-seed-properties db-migrate-ops db-migrate-features db-migrate-embeddings db-migrate-learning db-migrate-eval \
 	search-sync search-check feedback-check ranking-check ranking-check-verbose \
 	features-daily features-report \
@@ -30,6 +31,7 @@ help:
 	&& echo "    make eval-offline kpi-daily eval-weekly-report retrain-weekly" \
 	&& echo "    make dev-install    # install runtime and dev dependencies into .venv if present" \
 	&& echo "    make test           # run local pytest in the active Python environment" \
+	&& echo "    make check-layers   # enforce layer boundaries by AST (stage=5)" \
 	&& echo "    make api-refresh    # rebuild and recreate only the api service" \
 	&& echo "  Operations:" \
 	&& echo "    make ops-bootstrap  # one-time setup (migrations + seed + index + model prep)" \
@@ -57,6 +59,9 @@ dev-install:
 
 test:
 	$(PYTHON) -m pytest tests/ -v
+
+check-layers:
+	$(PYTHON) scripts/check_layers.py --stage 5
 
 api-refresh:
 	docker compose build api
@@ -151,6 +156,7 @@ ops-weekly:
 	$(MAKE) retrain-weekly
 
 verify-pipeline:
+	$(MAKE) check-layers
 	$(MAKE) health
 	$(MAKE) search-check
 	$(MAKE) feedback-check
