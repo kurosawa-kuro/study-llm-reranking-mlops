@@ -7,6 +7,10 @@ from typing import Any
 
 import redis
 
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
+
 _REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 _REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 _SEARCH_CACHE_TTL = int(os.getenv("SEARCH_CACHE_TTL_SECONDS", "120"))
@@ -38,9 +42,44 @@ def get_cached_search(params: dict[str, Any]) -> dict | None:
     try:
         raw = _get_client().get(_make_cache_key(params))
         if raw:
+            logger.debug("Cache hit", extra={"cache_key": _make_cache_key(params)})
             return json.loads(raw)
-    except Exception:
-        pass
+        logger.debug("Cache miss", extra={"cache_key": _make_cache_key(params)})
+    except redis.ConnectionError as exc:
+        logger.warning(
+            "Redis connection error on get",
+            extra={
+                "error": str(exc),
+                "host": _REDIS_HOST,
+                "port": _REDIS_PORT,
+            },
+        )
+    except redis.TimeoutError as exc:
+        logger.warning(
+            "Redis timeout on get",
+            extra={
+                "error": str(exc),
+                "host": _REDIS_HOST,
+                "port": _REDIS_PORT,
+            },
+        )
+    except json.JSONDecodeError as exc:
+        logger.error(
+            "Failed to decode cached value",
+            extra={
+                "error": str(exc),
+                "cache_key": _make_cache_key(params),
+            },
+        )
+    except Exception as exc:
+        logger.error(
+            "Unexpected error on cache get",
+            extra={
+                "error": str(exc),
+                "error_type": type(exc).__name__,
+            },
+            exc_info=True,
+        )
     return None
 
 
@@ -52,5 +91,37 @@ def set_cached_search(params: dict[str, Any], result: dict) -> None:
             _SEARCH_CACHE_TTL,
             json.dumps(result, ensure_ascii=False),
         )
-    except Exception:
-        pass
+        logger.debug(
+            "Cache set",
+            extra={
+                "cache_key": _make_cache_key(params),
+                "ttl_seconds": _SEARCH_CACHE_TTL,
+            },
+        )
+    except redis.ConnectionError as exc:
+        logger.warning(
+            "Redis connection error on set",
+            extra={
+                "error": str(exc),
+                "host": _REDIS_HOST,
+                "port": _REDIS_PORT,
+            },
+        )
+    except redis.TimeoutError as exc:
+        logger.warning(
+            "Redis timeout on set",
+            extra={
+                "error": str(exc),
+                "host": _REDIS_HOST,
+                "port": _REDIS_PORT,
+            },
+        )
+    except Exception as exc:
+        logger.error(
+            "Unexpected error on cache set",
+            extra={
+                "error": str(exc),
+                "error_type": type(exc).__name__,
+            },
+            exc_info=True,
+        )

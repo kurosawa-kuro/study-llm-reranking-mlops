@@ -6,6 +6,10 @@ from typing import Any
 
 import httpx
 
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class MeiliClient:
     def __init__(
@@ -31,12 +35,49 @@ class MeiliClient:
 
     def _request(self, method: str, path: str, payload: Any | None = None) -> Any:
         url = f"{self.base_url}{path}"
-        with httpx.Client(timeout=self.timeout, headers=self.headers) as client:
-            response = client.request(method, url, json=payload)
-            response.raise_for_status()
-            if response.content:
-                return response.json()
-            return {}
+        start_time = time.time()
+        
+        try:
+            with httpx.Client(timeout=self.timeout, headers=self.headers) as client:
+                response = client.request(method, url, json=payload)
+                response.raise_for_status()
+                
+                elapsed = time.time() - start_time
+                logger.debug(
+                    f"meilisearch_request_{method.lower()}",
+                    extra={
+                        "method": method,
+                        "path": path,
+                        "status_code": response.status_code,
+                        "elapsed_time_ms": round(elapsed * 1000, 2),
+                    },
+                )
+                
+                if response.content:
+                    return response.json()
+                return {}
+        except httpx.TimeoutException as exc:
+            logger.error(
+                "meilisearch_timeout",
+                extra={
+                    "method": method,
+                    "path": path,
+                    "timeout": self.timeout,
+                    "error": str(exc),
+                },
+            )
+            raise
+        except httpx.HTTPError as exc:
+            logger.error(
+                "meilisearch_request_error",
+                extra={
+                    "method": method,
+                    "path": path,
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                },
+            )
+            raise
 
     def _wait_for_task(self, task_uid: int) -> None:
         started_at = time.monotonic()
