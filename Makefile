@@ -2,6 +2,9 @@
 
 PYTHON := $(if $(wildcard .venv/bin/python),.venv/bin/python,$(if $(wildcard ../.venv/bin/python),../.venv/bin/python,python3))
 
+# docker compose を直接呼ばず、env/secret/credential.yaml を読み込むラッパー経由で起動する
+DOCKER_COMPOSE ?= ./scripts/compose.sh
+
 .PHONY: \
 	help up build down logs health test dev-install api-refresh \
 	check-layers \
@@ -34,16 +37,16 @@ help:
 	&& echo "    make verify-pipeline # representative end-to-end checks"
 
 up:
-	docker compose up -d
+	$(DOCKER_COMPOSE) up -d
 
 build:
-	docker compose build api
+	$(DOCKER_COMPOSE) build api
 
 down:
-	docker compose down
+	$(DOCKER_COMPOSE) down
 
 logs:
-	docker compose logs -f api postgres meilisearch pgadmin redis
+	$(DOCKER_COMPOSE) logs -f api postgres meilisearch pgadmin redis
 
 health:
 	$(PYTHON) scripts/ops/health_check.py
@@ -58,33 +61,33 @@ check-layers:
 	$(PYTHON) scripts/check_layers.py --stage 5
 
 api-refresh:
-	docker compose build api
-	docker compose up -d --force-recreate api
+	$(DOCKER_COMPOSE) build api
+	$(DOCKER_COMPOSE) up -d --force-recreate api
 
 db-migrate-core:
-	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/001_create_properties.sql
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/001_create_properties.sql
 
 db-seed-properties:
-	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/002_seed_properties.sql
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/002_seed_properties.sql
 
 db-migrate-ops:
-	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/003_create_logs_and_stats.sql
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/003_create_logs_and_stats.sql
 
 db-migrate-features:
-	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/004_features_and_batch_logs.sql
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/004_features_and_batch_logs.sql
 
 db-migrate-embeddings:
-	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/005_me5.sql
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/005_me5.sql
 
 db-migrate-learning:
-	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/006_learning_logs.sql
-	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/007_ranking_compare_logs.sql
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/006_learning_logs.sql
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/007_ranking_compare_logs.sql
 
 db-migrate-eval:
-	docker compose exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/008_eval_and_kpi.sql
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.maintenance.run_migrations src/migrations/008_eval_and_kpi.sql
 
 search-sync:
-	docker compose exec -T api python -m src.jobs.indexing.sync_properties_to_meilisearch
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.indexing.sync_properties_to_meilisearch
 
 search-check:
 	$(PYTHON) scripts/ops/search_check.py
@@ -93,22 +96,22 @@ feedback-check:
 	$(PYTHON) scripts/ops/feedback_check.py
 
 features-daily:
-	docker compose exec -T api python -m src.jobs.features.aggregate_daily_property_stats
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.features.aggregate_daily_property_stats
 
 features-report:
-	docker compose exec -T api python -m src.jobs.features.export_feature_report
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.features.export_feature_report
 
 embeddings-generate:
-	docker compose exec -T api python -m src.jobs.embeddings.generate_property_embeddings
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.embeddings.generate_property_embeddings
 
 ranking-check:
 	$(PYTHON) scripts/ops/ranking_check.py
 
 training-generate:
-	docker compose exec -T api python -m src.trainers.training_dataset_builder
+	$(DOCKER_COMPOSE) exec -T api python -m src.trainers.training_dataset_builder
 
 training-fit:
-	docker compose exec -T api python -m src.trainers.lgbm_trainer
+	$(DOCKER_COMPOSE) exec -T api python -m src.trainers.lgbm_trainer
 
 training-fit-safe:
 	$(PYTHON) scripts/ops/training_fit_safe.py
@@ -120,19 +123,19 @@ ranking-check-verbose:
 	$(PYTHON) scripts/ops/ranking_check_verbose.py
 
 eval-compare:
-	docker compose exec -T api python -m src.jobs.evaluation.export_ranking_compare_report
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.evaluation.export_ranking_compare_report
 
 eval-offline:
-	docker compose exec -T api python -m src.jobs.evaluation.run_offline_evaluation
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.evaluation.run_offline_evaluation
 
 kpi-daily:
-	docker compose exec -T api python -m src.jobs.evaluation.aggregate_daily_kpi
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.evaluation.aggregate_daily_kpi
 
 eval-weekly-report:
-	docker compose exec -T api python -m src.jobs.evaluation.export_weekly_evaluation_report
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.evaluation.export_weekly_evaluation_report
 
 retrain-weekly:
-	docker compose exec -T api python -m src.jobs.training.run_weekly_retraining
+	$(DOCKER_COMPOSE) exec -T api python -m src.jobs.training.run_weekly_retraining
 
 ops-bootstrap: db-migrate-core db-seed-properties db-migrate-ops db-migrate-features db-migrate-embeddings db-migrate-learning db-migrate-eval search-sync embeddings-generate training-label-seed training-generate training-fit-safe
 
