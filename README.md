@@ -130,5 +130,5 @@
 
 - docker-compose: ./docker-compose.yml
 - FastAPI entrypoint: ./src/api/main.py
-- environment template: ./.env.example
+- 非クレデンシャル設定: ./env/config/setting.yaml / クレデンシャル: ./env/secret/credential.yaml
 
